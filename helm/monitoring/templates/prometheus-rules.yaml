@@ -1,0 +1,54 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "monitoring.fullname" . }}-prometheus-rules
+  labels:
+    app: {{ include "monitoring.name" . }}
+spec:
+  groups:
+    - name: todo-app-api.rules
+      rules:
+        - alert: HighTodoAppErrorRate
+          expr: rate(http_requests_total{job="todo-app-api-service", status="500"}[5m]) > 0.1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High error rate on TodoApp API"
+            description: "The error rate for the TodoApp API is above 10% for more than 5 minutes."
+
+        - alert: HighMemoryUsage
+          expr: process_resident_memory_bytes{job="todo-app-api-service"} > 1.5e+9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage in TodoApp API"
+            description: "Memory usage is above 1.5GB for more than 5 minutes."
+
+        - alert: HighRequestLatency
+          expr: rate(http_request_duration_seconds_sum{job="todo-app-api-service"}[5m]) / rate(http_request_duration_seconds_count{job="todo-app-api-service"}[5m]) > 2
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High API latency"
+            description: "Average request duration is above 2 seconds for more than 5 minutes."
+
+        - alert: HighRequestRate
+          expr: rate(http_requests_total{job="todo-app-api-service"}[5m]) > 100
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High request rate on TodoApp API"
+            description: "Request rate is above 100 requests per second for more than 5 minutes."
+
+        - alert: ServiceDown
+          expr: up{job="todo-app-api-service"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "TodoApp API is down"
+            description: "The TodoApp API service is not responding to Prometheus scrapes."

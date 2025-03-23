@@ -1,5 +1,5 @@
 # The single host for the project
-host: nextjs.local
+host: todo.app.local
 
 # Configuration for the NestJS API
 api:

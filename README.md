@@ -31,7 +31,7 @@ kubectl get pods -n ingress-nginx
 ## Application Setup
 1. Add the following to your hosts file (`C:\Windows\System32\drivers\etc\hosts`):
 ```
-127.0.0.1 nextjs.local
+127.0.0.1 todo.app.local
 ```
 
 2. Install the Helm chart:
@@ -117,30 +117,38 @@ The ServiceMonitor is configured to scrape metrics from the Todo App API:
 The following alerts are configured:
 
 1. **High Error Rate Alert**
-   - Triggers when error rate exceeds 10% for 5 minutes
+   - Triggers when error rate exceeds 1% for more than 1 minute
    - Severity: Critical
 
 2. **High Memory Usage Alert**
-   - Triggers when memory usage exceeds 1.5GB for 5 minutes
+   - Triggers when memory usage exceeds 200MB for more than 2 minutes
    - Severity: Warning
 
 3. **High Request Latency Alert**
-   - Triggers when 95th percentile latency exceeds 2 seconds
-   - Severity: Warning
+   - Triggers when average request latency exceeds 0.5 seconds for more than 1 minute
+   - Severity: Critical
 
-4. **High Request Rate Alert**
-   - Triggers when request rate exceeds 100 requests/second
+4. **Low Request Rate Alert**
+   - Triggers when request rate is below 0.1 requests per second for more than 5 minutes
    - Severity: Warning
 
 5. **Service Down Alert**
-   - Triggers when service is unreachable for 1 minute
+   - Triggers when the Todo API service is down for more than 1 minute
+   - Severity: Critical
+
+6. **Slow Response Time Alert**
+   - Triggers when 95th percentile of response time is above 2 seconds for more than 5 minutes
+   - Severity: Warning
+
+7. **Test Alert**
+   - Always firing alert for testing webhook integration
    - Severity: Critical
 
 ### Accessing Monitoring Tools
 
 ```bash
 # Port forward Prometheus UI
- kubectl port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090 -n monitoring
+kubectl port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090 -n monitoring
 
 # Port forward Grafana
 kubectl port-forward svc/monitoring-grafana 3000:80
@@ -196,3 +204,38 @@ kubectl get servicemonitors
 3. **Response Time**
    - Monitor latency patterns during peak hours
    - Set up different thresholds for different endpoints if needed
+
+# Todo App Operations
+
+This repository contains operational configurations and tools for the Todo application.
+
+## Directory Structure
+
+```
+todo-app-ops/
+├── docker/
+│   ├── local-monitoring/   # Local monitoring setup with Prometheus, Loki, and Grafana
+│   │   └── LOCAL_MONITORING.md  # Documentation for local monitoring setup
+│   └── ... other Docker configurations
+└── ... other operational tools and configurations
+```
+
+## Local Monitoring
+
+The local monitoring setup provides tools to monitor the Todo application in a local development environment. It includes:
+
+- **Prometheus** for metrics collection
+- **Loki** for log aggregation
+- **Grafana** for visualization
+
+For detailed instructions on setting up local monitoring, see [LOCAL_MONITORING.md](docker/local-monitoring/LOCAL_MONITORING.md).
+
+## Getting Started
+
+1. Clone this repository alongside your Todo application repository:
+
+```bash
+git clone https://github.com/your-org/todo-app-ops.git
+```
+
+2. Follow the documentation in the specific directory for the operational tool you want to use.

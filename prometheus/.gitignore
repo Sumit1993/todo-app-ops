@@ -1,0 +1,7 @@
+# Ignore actual configuration files
+prometheus.yml
+alertmanager.yml
+
+# Keep template files
+!prometheus.yml.template
+!alertmanager.yml.template

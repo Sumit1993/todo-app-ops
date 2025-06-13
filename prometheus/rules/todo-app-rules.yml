@@ -6,6 +6,7 @@ groups:
         for: 1m
         labels:
           severity: critical
+          service: "todo-app-api"
         annotations:
           summary: "High error rate on TodoApp API"
           description: "The error rate for the TodoApp API is above 1% for more than 1 minute."
@@ -15,6 +16,7 @@ groups:
         for: 2m
         labels:
           severity: warning
+          service: "todo-app-api"
         annotations:
           summary: "High memory usage in TodoApp API"
           description: "Memory usage is above 200MB for more than 2 minutes."
@@ -24,6 +26,7 @@ groups:
         for: 1m
         labels:
           severity: critical
+          service: "todo-app-api"
         annotations:
           summary: "High API latency"
           description: "Average request duration is above 0.5 seconds for more than 1 minute."
@@ -33,6 +36,7 @@ groups:
         for: 5m
         labels:
           severity: warning
+          service: "todo-app-api"
         annotations:
           summary: "Low traffic on TodoApp API"
           description: "Request rate is below 0.1 requests per second for more than 5 minutes."
@@ -42,6 +46,7 @@ groups:
         for: 1m
         labels:
           severity: critical
+          service: "todo-app-api"
         annotations:
           summary: "TodoApp API is down"
           description: "The TodoApp API service is not responding to Prometheus scrapes."
@@ -51,6 +56,7 @@ groups:
         for: 5m
         labels:
           severity: warning
+          service: "todo-app-api"
         annotations:
           summary: "Slow response time detected"
           description: "95th percentile of response time is above 2 seconds"

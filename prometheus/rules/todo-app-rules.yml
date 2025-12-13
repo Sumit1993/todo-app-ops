@@ -12,7 +12,7 @@ groups:
           description: "The error rate for the TodoApp API is above 1% for more than 1 minute."
 
       - alert: HighMemoryUsage
-        expr: process_resident_memory_bytes{job="todo-app-api"} > 200000000
+        expr: process_resident_memory_bytes{job="todo-app-api"} > 2000000
         for: 2m
         labels:
           severity: warning

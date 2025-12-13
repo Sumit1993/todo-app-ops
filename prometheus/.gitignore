@@ -5,3 +5,10 @@ alertmanager.yml
 # Keep template files
 !prometheus.yml.template
 !alertmanager.yml.template
+
+# Prometheus data
+data/*
+
+# Prometheus binary
+prometheus.exe
+alertmanager.exe

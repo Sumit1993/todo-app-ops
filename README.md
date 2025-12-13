@@ -74,7 +74,7 @@ The monitoring setup includes comprehensive alert rules designed to trigger real
 2. Start Prometheus:
 ```bash
 cd prometheus
-./prometheus --config.file=prometheus.yml
+prometheus --config.file=prometheus.yml
 ```
 **Note**: The prometheus.yml is already configured to scrape the deployed todo-app-api on Render.
 
@@ -84,7 +84,7 @@ cd prometheus
 3. Start Alertmanager:
 ```bash
 cd prometheus
-./alertmanager --config.file=alertmanager.yml
+alertmanager --config.file=alertmanager.yml
 ```
 
 ### 3. Testing Incident Workflows

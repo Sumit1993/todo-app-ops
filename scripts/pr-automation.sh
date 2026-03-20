@@ -1,8 +1,21 @@
 #!/bin/bash
 
-# PR Automation Script for Todo App API
+# PR Automation Script for Todo App
 # Creates realistic PR history with subtle bugs over 5 days
+# Lives in ops repo, creates PRs in sibling API/UI repos
+#
+# Auto-detects repos:
+#   - API: ../todo-app-api (relative to ops repo)
+#   - UI:  ../todo-app-ui (optional)
+#   - State stored in ops repo
+#
 # Usage: ./scripts/pr-automation.sh [--day N] [--status] [--reset]
+#
+# Examples:
+#   ./scripts/pr-automation.sh          # Run current day
+#   ./scripts/pr-automation.sh --status # Show status
+#   ./scripts/pr-automation.sh --day 3  # Force specific day
+#   ./scripts/pr-automation.sh --reset  # Reset state
 
 set -e
 
@@ -13,13 +26,13 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Configuration
-STATE_FILE=".pr-automation-state"
+# Auto-detect paths from script location
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-
-# Change to project directory
-cd "$PROJECT_DIR"
+OPS_REPO="$(dirname "$SCRIPT_DIR")"
+API_REPO="$(cd "$OPS_REPO/../todo-app-api" 2>/dev/null && pwd)"
+UI_REPO="$(cd "$OPS_REPO/../todo-app-ui" 2>/dev/null && pwd)"
+STATE_FILE="$OPS_REPO/.pr-automation-state"
+CURRENT_REPO=""
 
 #######################################
 # Utility Functions
@@ -39,6 +52,26 @@ log_warning() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Change to a repo and verify it exists
+switch_to_repo() {
+    local repo_path=$1
+    local repo_name=$2
+
+    if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
+        log_error "$repo_name not found at expected location"
+        exit 1
+    fi
+
+    if [ ! -d "$repo_path/.git" ]; then
+        log_error "$repo_name is not a git repository: $repo_path"
+        exit 1
+    fi
+
+    cd "$repo_path"
+    CURRENT_REPO="$repo_path"
+    log_info "Switched to: $repo_path"
 }
 
 # Initialize state file
@@ -104,6 +137,11 @@ show_status() {
     init_state
     echo ""
     echo "===== PR Automation Status ====="
+    echo ""
+    echo "Ops Repo: $OPS_REPO"
+    echo "API Repo: ${API_REPO:-'Not found'}"
+    echo "UI Repo: ${UI_REPO:-'Not found'}"
+    echo "State File: $STATE_FILE"
     echo ""
 
     local start_date=$(get_state "startDate")
@@ -174,9 +212,9 @@ merge_pr() {
     local pr_number=$1
 
     log_info "Merging PR #$pr_number"
-    gh pr merge "$pr_number" --merge --delete-branch
-    git checkout main
-    git pull origin main
+    gh pr merge "$pr_number" --merge --delete-branch || true
+    git checkout main 2>/dev/null || git checkout -f main
+    git pull origin main 2>/dev/null || true
 }
 
 get_latest_pr_number() {
@@ -189,6 +227,7 @@ get_latest_pr_number() {
 
 run_day1() {
     log_info "========== Running Day 1 =========="
+    switch_to_repo "$API_REPO" "todo-app-api"
 
     # PR 1: Cleanup (already done in working directory)
     log_info "PR 1: Cleanup - Remove deprecated endpoints"
@@ -304,6 +343,7 @@ Extracts rate limiting logic to a dedicated class.
 
 run_day2() {
     log_info "========== Running Day 2 =========="
+    switch_to_repo "$API_REPO" "todo-app-api"
 
     # PR 3: Add input validation (with bug)
     log_info "PR 3: Add input validation"
@@ -452,6 +492,7 @@ Adds correlation ID tracking to improve request tracing and debugging.
 
 run_day3() {
     log_info "========== Running Day 3 =========="
+    switch_to_repo "$API_REPO" "todo-app-api"
 
     # PR 5: Add service logging (breaks correlation ID - BUG)
     log_info "PR 5: Add service layer logging"
@@ -722,6 +763,7 @@ Cache invalidation on writes ensures data consistency."
 
 run_day4() {
     log_info "========== Running Day 4 =========="
+    switch_to_repo "$API_REPO" "todo-app-api"
 
     # PR 7: Fix cache cleanup timing (introduces closure bug)
     log_info "PR 7: Fix cache cleanup timing"
@@ -1145,6 +1187,7 @@ This provides faster feedback when the external API is slow."
 
 run_day5() {
     log_info "========== Running Day 5 =========="
+    switch_to_repo "$API_REPO" "todo-app-api"
 
     # PR 10: Add retry mechanism (with aggressive backoff bug)
     log_info "PR 10: Add retry mechanism"
@@ -1690,7 +1733,23 @@ main() {
         esac
     done
 
-    # Initialize state
+    # Verify repos exist
+    log_info "Detecting repositories..."
+    if [ -z "$API_REPO" ]; then
+        log_error "API repo not found at: $OPS_REPO/../todo-app-api"
+        exit 1
+    fi
+    log_info "  API: $API_REPO"
+
+    if [ -z "$UI_REPO" ]; then
+        log_warning "  UI: Not found (optional)"
+    else
+        log_info "  UI: $UI_REPO"
+    fi
+    log_info "  State: $STATE_FILE"
+    echo ""
+
+    # Initialize state (in ops repo)
     init_state
 
     # Handle special modes

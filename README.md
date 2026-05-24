@@ -1,174 +1,214 @@
-# Todo App Operations
+# todo-app-ops-k8s
 
-Infrastructure and monitoring configurations for the **Todo App testing workspace**, designed to support incident response and monitoring system validation. This setup provides comprehensive alerting, metrics collection, and observability for testing automated incident response workflows.
+Kubernetes infrastructure for the Todo App — owned by the SRE team.
 
-## Purpose
-This operations directory contains all the infrastructure and monitoring configurations needed to run a **realistic testing environment** for validating incident response systems, monitoring tools, and observability platforms through automated alerting and metrics collection.
+This repo contains Helm charts, Gateway API configuration, Prometheus alert rules, and on-call runbooks for the Todo App platform running on Kubernetes.
 
-## Directory Structure
+---
+
+## Repository Structure
+
 ```
-todo-app-ops/
-├── helm/                    # Kubernetes configurations
-│   └── ingress/            # Ingress controller configurations  
-├── prometheus/             # Complete monitoring stack
-│   ├── prometheus.yml      # Prometheus server configuration
-│   ├── alertmanager.yml    # Alert routing and notification config
-│   └── rules/              # Comprehensive alert rules
-│       └── todo-app-rules.yml  # Production-ready alert definitions
-└── README.md
+todo-app-ops-k8s/
+├── helm/
+│   ├── api/            # NestJS API Helm chart
+│   ├── ui/             # Next.js UI Helm chart
+│   ├── postgresql/     # PostgreSQL Helm chart
+│   ├── valkey/         # Valkey (Redis-compatible) Helm chart
+│   └── umbrella/       # Umbrella chart — deploys the full stack
+├── prometheus/
+│   ├── prometheus.yml
+│   ├── alertmanager.yml
+│   └── rules/
+│       └── todo-app-rules.yml
+├── docs/
+│   └── runbooks/
+│       ├── service-down.md
+│       ├── high-error-rate.md
+│       ├── high-latency.md
+│       ├── crashloop-backoff.md
+│       └── pod-oom-kill.md
+└── scripts/
+    └── load-test.js
 ```
 
-## Key Features
-- **Production-grade Alert Rules**: Comprehensive alerting for error rates, latency, memory usage, and service availability
-- **Realistic Monitoring Setup**: Local Prometheus + Alertmanager stack for testing incident workflows  
-- **Webhook Integration**: Ready for integration with incident response systems
-- **Cloud Monitoring Support**: Compatible with remote monitoring platforms
-- **Kubernetes Deployment**: Full containerized application deployment
+---
 
 ## Prerequisites
-1. [Rancher Desktop](https://rancherdesktop.io/) for local Kubernetes
-2. [Prometheus](https://prometheus.io/download/) for metrics collection
-3. [Alertmanager](https://prometheus.io/download/#alertmanager) for alert management
 
-## Kubernetes Setup
+- [Rancher Desktop](https://rancherdesktop.io/) or any CNCF-conformant cluster
+- `kubectl` + `helm` v3
+- `pnpm` (for load test scripts)
 
-### 1. NGINX Ingress Controller
+---
+
+## Deploying the Stack
+
+### Full deployment
+
 ```bash
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-helm repo update
-
-helm install ingress-nginx ingress-nginx/ingress-nginx \
-  --namespace ingress-nginx \
+helm upgrade --install todo-app helm/umbrella \
+  --namespace todo-app \
   --create-namespace \
-  --set controller.watchIngressWithoutClass=true
+  -f helm/umbrella/values.yaml
 ```
 
-### 2. Application Deployment
-```bash
-# Add to hosts file (C:\Windows\System32\drivers\etc\hosts):
-# 127.0.0.1 nextjs.local
+### Per-component upgrades
 
-helm install todo-app ./helm/todo-app --namespace todo-app --create-namespace
+```bash
+# API only
+helm upgrade todo-app-api helm/api -n todo-app
+
+# UI only
+helm upgrade todo-app-ui helm/ui -n todo-app
 ```
 
-## Alert Rules Overview
+### Tear down
 
-The monitoring setup includes comprehensive alert rules designed to trigger realistic incidents:
-
-### Error Rate Alerts
-- **HighTodoAppErrorRate**: Triggers when 5xx error rate > 1% for 1+ minute
-- **ServiceDown**: Detects when the API service stops responding
-
-### Performance Alerts  
-- **HighRequestLatency**: Monitors average response time > 500ms for 1+ minute
-- **SlowResponseTime**: Tracks 95th percentile response time > 2s for 5+ minutes
-
-### Resource Alerts
-- **HighMemoryUsage**: Alerts when memory usage > 200MB for 2+ minutes  
-- **LowRequestRate**: Detects abnormally low traffic (< 0.1 req/sec for 5+ minutes)
-
-## Monitoring Setup
-
-### 1. Prometheus Configuration
-1. Extract Prometheus to `prometheus/` directory
-2. Start Prometheus:
 ```bash
-cd prometheus
-prometheus --config.file=prometheus.yml
-```
-**Note**: The prometheus.yml is already configured to scrape the deployed todo-app-api on Render.
-
-### 2. Alertmanager Setup
-1. Extract Alertmanager to `prometheus/` directory
-2. Configure webhook endpoints in `alertmanager.yml` (if integrating with incident response systems)
-3. Start Alertmanager:
-```bash
-cd prometheus
-alertmanager --config.file=alertmanager.yml
-```
-
-### 3. Testing Incident Workflows
-The setup enables comprehensive incident testing:
-- **UI-Triggered Incidents**: Use the Issue Simulator to trigger specific alerts
-- **Burst Mode Testing**: Rapidly generate errors to trigger rate-based alerts
-- **Memory Pressure**: Controllable memory leaks to test resource alerting
-- **Realistic Timing**: Alert thresholds match real-world monitoring scenarios
-
-## Accessing Services
-- **Local Application**: http://nextjs.local (when running locally)
-- **Cloud Application**: https://todo-app-ui.vercel.app (production deployment)
-- **API Endpoint**: https://todo-app-api-yns4.onrender.com
-- **Prometheus**: http://localhost:9090
-- **Alertmanager**: http://localhost:9093
-
-## Common Commands
-
-### Kubernetes
-```bash
-# Update application
-helm upgrade todo-app ./helm/todo-app -n todo-app
-
-# Uninstall application
 helm uninstall todo-app -n todo-app
-
-# Check ingress status
-kubectl get ingress -n todo-app
+kubectl delete namespace todo-app
 ```
 
-### Monitoring
-```powershell
-# Reload Prometheus config
-Invoke-RestMethod -Method POST http://localhost:9090/-/reload
+---
 
-# Reload Alertmanager config
-Invoke-RestMethod -Method POST http://localhost:9093/-/reload
+## Routing
 
-# View Prometheus targets
-Start-Process "http://localhost:9090/targets"
+Traffic is handled by [Gateway API](https://gateway-api.sigs.k8s.io/) v1.5 with Traefik as the gateway controller.
 
-# View active alerts
-Start-Process "http://localhost:9090/alerts"
+```bash
+kubectl get httproute -n todo-app
+kubectl get gateway -n todo-app
 ```
 
-## Integration with Incident Response Systems
+The umbrella chart installs a `Gateway` and two `HTTPRoute` resources:
+- `/api/*` → `todo-app-api` service
+- `/*` → `todo-app-ui` service
 
-### Webhook Configuration
-To integrate with incident response systems, configure alertmanager.yml:
+---
+
+## Monitoring
+
+### Alert rules
+
+Alert definitions live in `prometheus/rules/todo-app-rules.yml`. Active alerts:
+
+| Alert | Severity | Threshold |
+|-------|----------|-----------|
+| `ServiceDown` | critical | No successful responses for 2 min |
+| `HighTodoAppErrorRate` | warning/critical | 5xx rate > 1% for 1 min |
+| `HighRequestLatency` | warning | p95 > 2s for 5 min |
+| `PodCrashLooping` | critical | CrashLoopBackOff restart count > 3 in 10 min |
+| `PodOOMKilled` | critical | OOMKill event on any pod |
+
+Each alert's `runbookUrl` annotation points to the corresponding file in `docs/runbooks/`.
+
+### Applying alert rule changes
+
+```bash
+# Reload Prometheus config (no restart needed)
+curl -s -X POST http://localhost:9090/-/reload
+
+# Verify rules loaded
+curl -s http://localhost:9090/api/v1/rules | jq '.data.groups[].rules[].name'
+```
+
+---
+
+## On-Call Runbooks
+
+| Runbook | Alert |
+|---------|-------|
+| [service-down.md](docs/runbooks/service-down.md) | `ServiceDown` |
+| [high-error-rate.md](docs/runbooks/high-error-rate.md) | `HighTodoAppErrorRate` |
+| [high-latency.md](docs/runbooks/high-latency.md) | `HighRequestLatency` |
+| [crashloop-backoff.md](docs/runbooks/crashloop-backoff.md) | `PodCrashLooping` |
+| [pod-oom-kill.md](docs/runbooks/pod-oom-kill.md) | `PodOOMKilled` |
+
+---
+
+## Helm Values Reference
+
+### API resource tuning (`helm/api/values.yaml`)
 
 ```yaml
-route:
-  receiver: 'incident-response-webhook'
-  
-receivers:
-- name: 'incident-response-webhook'
-  webhook_configs:
-  - url: 'http://your-incident-system:8000/api/webhooks/prometheus'
-    send_resolved: true
+replicaCount: 1
+
+image:
+  repository: ghcr.io/todo-corp/todo-app-api-nestjs
+  tag: latest
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+readinessProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+livenessProbe:
+  initialDelaySeconds: 15
+  periodSeconds: 20
 ```
 
-### Alert Payload Structure
-Alerts are sent with rich context including:
-- **Alert metadata**: severity, service, alert name
-- **Metrics data**: current values, thresholds, duration
-- **Service information**: deployment info, error context
-- **Timing data**: alert start time, resolution time
+> For Spring Boot deployments, `initialDelaySeconds` must be increased to at least 30s (readiness) / 60s (liveness). See [crashloop-backoff.md](docs/runbooks/crashloop-backoff.md).
 
-## Security Notes
-- Keep webhook URLs and credentials secure
-- Use HTTPS for all external communications  
-- For production integrations, use proper secrets management
-- Monitor alert webhook delivery for security anomalies
+### Scaling
 
-## Troubleshooting
-- If ingress is not working, check NGINX controller:
-  ```bash
-  kubectl get pods -n ingress-nginx
-  ```
-- If metrics are missing, verify Prometheus targets:
-  ```bash
-  curl http://localhost:9090/api/v1/targets
-  ```
-- For alert issues, check Alertmanager status:
-  ```bash
-  curl http://localhost:9093/api/v1/status
-  ```
+```bash
+# Manual scale-out
+kubectl scale deployment todo-app-api --replicas=3 -n todo-app
+
+# Or update values and upgrade
+# helm/api/values.yaml → replicaCount: 3
+helm upgrade todo-app helm/umbrella -n todo-app -f helm/umbrella/values.yaml
+```
+
+---
+
+## Namespace Layout
+
+| Namespace | Contents |
+|-----------|----------|
+| `todo-app` | API, UI deployments |
+| `data` | PostgreSQL, Valkey |
+| `monitoring` | Prometheus, Alertmanager, Grafana |
+
+---
+
+## Common Kubectl Commands
+
+```bash
+# Pod status
+kubectl get pods -n todo-app
+kubectl get pods -n data
+
+# Logs
+kubectl logs deployment/todo-app-api -n todo-app --since=10m
+kubectl logs deployment/todo-app-ui -n todo-app --since=10m
+
+# Shell into pod
+kubectl exec -it <pod-name> -n todo-app -- sh
+
+# Resource usage
+kubectl top pods -n todo-app
+kubectl top nodes
+
+# Events (useful for diagnosing CrashLoop/OOM)
+kubectl get events -n todo-app --sort-by='.lastTimestamp'
+```
+
+---
+
+## Related Repositories
+
+| Repo | Description |
+|------|-------------|
+| [todo-app-api-nestjs](https://github.com/todo-corp/todo-app-api-nestjs) | NestJS REST API — backend team |
+| [todo-app-ui](https://github.com/todo-corp/todo-app-ui) | Next.js frontend — frontend team |
+| [todo-app-ops-docker](https://github.com/todo-corp/todo-app-ops-docker) | Docker Compose staging — SRE team |
+| [todo-app-ops-vm](https://github.com/todo-corp/todo-app-ops-vm) | Kamal VM fleet — SRE team |
